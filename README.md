@@ -42,43 +42,6 @@
 ```text
 http://127.0.0.1:8001/config
 ```
-
-## 配置说明
-
-本项目不要把真实密钥写进代码仓库。请复制 `.env.example` 为 `.env`，在本地或服务器后台配置环境变量。
-
-模型、搜索和邮箱配置优先通过页面表单填写；上传 GitHub 时不要上传：
-
-- `.env`
-- `data/*.json`
-- `outputs/`
-- `logs/`
-- `.venv/`
-
-这些内容已经在 `.gitignore` 中忽略。
-
-## 目录结构
-
-```text
-backend/              后端 API、每日情报调度、邮件推送
-frontend/             首页和配置页
-gpt_researcher/       底层公开网页研究引擎，作为内部依赖保留
-multi_agents/         上游多 agent 能力，当前暂保留以避免破坏导入链
-multi_agents_ag2/     上游 AG2 多 agent 能力，当前暂保留
-data/                 本地订阅和运行记录，不上传
-outputs/              生成报告，不上传
-logs/                 日志，不上传
-start_daily_intel.bat Windows 一键启动脚本
-```
-
-## 上传 GitHub 前检查
-
-```powershell
-.\scripts\check_before_github.ps1
-```
-
-如果某个真实 key 曾经提交过，即使后来删除，也应该立刻到对应平台重置 key。
-
 ## 定时任务部署建议
 
 当前内置调度器只在 Web 服务运行期间生效，适合本地使用和个人服务器试运行。部署上线时有三种推荐方案：
@@ -95,6 +58,3 @@ start_daily_intel.bat Windows 一键启动脚本
 - 失败重试：邮件推送失败不能影响报告生成。
 - 运行详情：前端能看到当前阶段和失败原因。
 
-## 说明
-
-本项目基于开源网页研究能力改造，当前产品层已经聚焦为“每日情报速递”。底层 `gpt_researcher` Python 包名暂时保留为内部实现细节，不建议在未重构导入链前直接重命名。
