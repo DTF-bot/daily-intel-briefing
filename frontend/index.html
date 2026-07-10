@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <title>每日情报速递</title>
+    <meta name="description" content="抓取公开公司、产品和行业动态，生成中文情报摘要报告">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="./static/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/site/styles.css?v=daily-intel-20260707-1" />
+    <style>
+        .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+        }
+
+        .agent-name {
+            text-align: center;
+        }
+
+        .agent-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .agent-choices {
+            display: none;
+        }
+
+        .btn-show {
+            display: none;
+        }
+
+        /* Icon button style for inline buttons */
+        .icon-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 5px;
+            border-radius: 4px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .icon-button:hover {
+            background-color: rgba(123, 104, 238, 0.1); /* Placeholder, adjust in styles.css */
+        }
+
+        .icon-button:active {
+        }
+
+        /* Ensure buttons are properly aligned in headings */
+        h2 .icon-button, h2 .expand-button {
+            vertical-align: middle;
+            font-size: 0.8em;
+        }
+        
+        /* New navigation buttons in the top-right corner */
+        .nav-buttons {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation Buttons (moved from top bar) -->
+    <div class="nav-buttons">
+        <div id="websocketPanelOpenBtn" class="top-websocket-button">
+            <i class="fas fa-network-wired"></i> 状态
+        </div>
+        <div id="historyPanelOpenBtn" class="top-history-button">
+            <i class="fas fa-history"></i> 情报历史
+        </div>
+    </div>
+
+    <!-- WebSocket Status Panel -->
+    <div class="websocket-panel" id="websocketPanel">
+        <div class="websocket-panel-header">
+            <h3><i class="fas fa-plug"></i> 连接状态</h3>
+            <div class="websocket-panel-actions">
+                <button id="websocketPanelToggle" class="websocket-action-btn" title="关闭面板">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+        </div>
+        <div class="websocket-status">
+            <div class="status-item">
+                <span class="status-label">连接：</span>
+                <span class="status-value" id="connectionStatus">未连接</span>
+                <span class="status-indicator" id="connectionIndicator"></span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">研究任务：</span>
+                <span class="status-value" id="researchStatus">未开始</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">已连接：</span>
+                <span class="status-value" id="connectionDuration">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">最近活动：</span>
+                <span class="status-value" id="lastActivity">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">ReadyState:</span>
+                <span class="status-value" id="readyState">-</span>
+            </div>
+            <div class="status-divider"></div>
+            <div class="status-item">
+                <span class="status-label">连接尝试：</span>
+                <span class="status-value" id="connectionAttempts">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">已接收消息：</span>
+                <span class="status-value" id="messagesReceived">0</span>
+            </div>
+            <div class="status-divider"></div>
+            <div class="status-item">
+                <span class="status-label">当前任务：</span>
+                <span class="status-value" id="currentTask">-</span>
+            </div>
+        </div>
+    </div>
+
+    <section class="landing">
+        <div class="max-w-5xl mx-auto text-center">
+            <h1 class="text-4xl font-extrabold mx-auto lg:text-7xl">
+                每日情报速递<br>
+                <span
+                    style="background-image:linear-gradient(to right, #0f766e, #2563eb); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">公司与行业动态摘要</span>
+            </h1>
+            <p class="max-w-6xl mx-auto text-gray-600 mt-8" style="font-size:20px">
+                定时抓取公开新闻、融资、产品发布、技术博客和行业动态。<br>
+                自动分类总结，生成每日报告，并可推送到邮箱。
+            </p>
+            <a href="/config" class="btn btn-primary" id="landingStartBtn">配置情报订阅</a>
+        </div>
+    </section>
+
+    <main class="container job-workspace" id="form">
+        <div class="job-form-header">
+            <div>
+                <p class="job-kicker">Daily Intelligence</p>
+                <h2>配置每日情报订阅</h2>
+            </div>
+            <p>输入监控对象、关键词、来源分类和推送设置，助手会围绕公开来源生成情报报告。</p>
+        </div>
+
+        <section class="model-config-panel" aria-label="模型调用配置">
+            <div class="model-config-heading">
+                <div>
+                    <p class="job-kicker">Model Provider</p>
+                    <h3>模型调用配置</h3>
+                </div>
+                <span id="modelConfigStatus" class="model-config-status">读取中</span>
+            </div>
+            <div class="model-config-layout">
+                <div class="model-provider-list" id="modelProviderList"></div>
+                <div class="model-provider-form">
+                    <div class="model-provider-title">
+                        <div class="model-provider-logo" id="modelProviderLogo">AI</div>
+                        <div>
+                            <h4 id="modelProviderName">模型供应商</h4>
+                            <p id="modelProviderHint">配置 API Key、Base URL 和模型 ID</p>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="model-label-row">
+                            <label for="modelApiKey" class="agent-question">API Key</label>
+                            <a href="#" id="modelApiHelp" target="_blank" rel="noopener noreferrer">获取 API Key <i class="fas fa-arrow-up-right-from-square"></i></a>
+                        </div>
+                        <input id="modelApiKey" type="password" class="form-control highlight-connection" placeholder="已配置时可留空；填写新 key 会覆盖服务器配置" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="modelBaseUrl" class="agent-question">Base URL</label>
+                        <input id="modelBaseUrl" class="form-control highlight-connection" placeholder="例如：https://api.openai.com/v1" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="modelId" class="agent-question">模型 ID</label>
+                        <input id="modelId" class="form-control highlight-connection" placeholder="例如：gpt-4o-mini、deepseek-chat、Doubao-Seed-Evolving" autocomplete="off">
+                    </div>
+                    <button type="button" class="btn btn-primary model-save-btn" id="saveModelConfigBtn">保存模型配置</button>
+                    <p class="model-config-note">API Key 只提交给本地后端保存，不会在页面回显明文。线上部署时请保护服务器环境变量和 .env 文件。</p>
+                </div>
+            </div>
+        </section>
+
+        <form method="POST" class="mt-3 job-search-form" id="researchForm">
+            <div class="form-group job-field-primary">
+                <label for="intelName" class="agent-question">名称</label>
+                <input id="intelName" name="intel_name" class="form-control highlight-connection" placeholder="例如：AI 大模型产业动态" required autocomplete="on">
+                <textarea id="task" name="task" class="form-control highlight-connection" hidden></textarea>
+                <input type="radio" name="agent" id="autoAgent" value="Auto Agent" checked hidden>
+            </div>
+            <div class="form-group job-field-primary">
+                <label for="intelTargets" class="agent-question">目标公司/产品</label>
+                <input id="intelTargets" name="intel_targets" class="form-control highlight-connection" placeholder="例如：OpenAI, Anthropic, 字节豆包, 阿里通义, 腾讯混元" autocomplete="on">
+            </div>
+            <div class="form-group">
+                <label for="intelKeywords" class="agent-question">关键词</label>
+                <input id="intelKeywords" name="intel_keywords" class="form-control highlight-connection" placeholder="例如：融资, 发布, API, 模型, Agent, 企业服务" autocomplete="on">
+            </div>
+            <div class="form-group">
+                <label for="intelScheduleTime" class="agent-question">每日执行时间</label>
+                <input id="intelScheduleTime" name="intel_schedule_time" type="time" class="form-control highlight-connection" value="09:00" autocomplete="on">
+                <small class="text-muted">本地服务运行期间有效，服务关闭时不会自动执行。</small>
+            </div>
+            <div class="form-group">
+                <label for="intelTimeWindowDays" class="agent-question">情报时间范围</label>
+                <select id="intelTimeWindowDays" name="intel_time_window_days" class="form-control highlight-connection">
+                    <option value="1">最近 24 小时</option>
+                    <option value="3">最近 3 天</option>
+                    <option value="7" selected>最近 7 天</option>
+                    <option value="30">最近 30 天</option>
+                </select>
+                <small class="text-muted">系统会优先检索和总结这个时间范围内发布或更新的公开信息。</small>
+            </div>
+            <div class="form-group legacy-agent-controls">
+                <div class="row">
+
+
+                </div>
+                <button type="button" id="btnShowAuto" class="btn btn-secondary mt-3 btn-show">自动助手</button>
+            </div>
+            <div class="form-group">
+                <label for="report_type" class="agent-question">你想生成哪种情报报告？</label>
+                <select name="report_type" id="report_type" class="form-control highlight-connection" required>
+                    <option value="research_report">快速情报摘要 - 简短快速（约 2 分钟）</option>
+                    <option value="detailed_report">标准每日情报报告 - 更完整（约 5 分钟）</option>
+                    <option value="resource_report">来源链接清单</option>
+                    <option value="deep">深度行业分析</option>
+                </select>
+                <small class="text-muted">报告会按摘要、已选分类情报、公司/产品动态、商业信号、趋势和风险组织。</small>
+            </div>
+            <div class="form-group advanced-report-field" hidden>
+                <label for="tone" class="agent-question">报告分析方式</label>
+                <select name="tone" id="tone" class="form-control highlight-connection" required>
+                    <option value="Objective">客观 - 中立呈现事实和发现
+                    </option>
+                    <option value="Formal">正式 - 符合学术规范，语言和结构更严谨</option>
+                    <option value="Analytical">分析型 - 深入评估数据、观点和理论</option>
+                    <option value="Persuasive">说服型 - 围绕某个观点进行论证</option>
+                    <option value="Informative">信息型 - 清晰全面地介绍主题
+                    </option>
+                    <option value="Explanatory">解释型 - 解释复杂概念和流程</option>
+                    <option value="Descriptive">描述型 - 详细描述现象、实验或案例</option>
+                    <option value="Critical">批判型 - 判断研究和结论的有效性与相关性</option>
+                    <option value="Comparative">比较型 - 对比不同理论、数据或方法</option>
+                    <option value="Speculative">推测型 - 探索假设、影响和未来方向</option>
+                    <option value="Reflective">反思型 - 结合研究过程和个人洞察</option>
+                    <option value="Narrative">叙事型 - 用故事方式呈现研究发现或方法</option>
+                    <option value="Humorous">轻松型 - 更轻松、有亲和力</option>
+                    <option value="Optimistic">乐观型 - 突出积极发现和潜在收益
+                    </option>
+                    <option value="Pessimistic">审慎型 - 重点关注限制、挑战或负面结果
+                    </option>
+                </select>
+            </div>
+            <div class="form-group advanced-report-field">
+                <label for="report_source" class="agent-question">信息来源范围</label>
+                <p class="text-left mt-0 pt-0" style="font-size: 0.7rem;">默认使用网络公开信息；也可以结合本地资料。</p>
+                <select name="report_source" id="report_source" class="form-control highlight-connection" required>
+                    <option value="web">网络</option>
+                    <option value="local">我的文档</option>
+                    <option value="hybrid">网络 + 本地文档</option>
+                    <option value="azure">Azure 存储</option>
+                </select>
+            </div>
+            <div class="form-group advanced-report-field">
+                <label for="maxSearchResults" class="agent-question">每轮搜索最多分析多少个公开页面？</label>
+                <input type="number" class="form-control highlight-connection" id="maxSearchResults" name="max_search_results" min="1" max="20" value="5">
+                <small class="text-muted">数量越多越全面，但耗时也越长（默认：5）</small>
+            </div>
+            <details class="form-group advanced-search-settings">
+                <summary>高级搜索设置</summary>
+                <div class="advanced-search-body">
+                    <label for="queryDomains" class="form-label">只搜索这些网站域名（可选）</label>
+                    <input type="text" class="form-control highlight-connection" id="queryDomains" name="query_domains" placeholder="例如：36kr.com, techcrunch.com, qbitai.com" autocomplete="on">
+                    <small class="text-muted">不填写时，助手会自行寻找可信公开来源。</small>
+                </div>
+            </details>
+            <div class="form-group job-field-primary">
+                <label class="agent-question">来源分类</label>
+                <div class="intel-category-grid" id="intelCategories">
+                    <label><input type="checkbox" value="news" checked> 新闻</label>
+                    <label><input type="checkbox" value="funding" checked> 融资</label>
+                    <label><input type="checkbox" value="product" checked> 产品发布</label>
+                    <label><input type="checkbox" value="tech_blog" checked> 技术博客</label>
+                    <label><input type="checkbox" value="industry" checked> 行业动态</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="intelEnabled" class="agent-question">
+                    <input id="intelEnabled" name="intel_enabled" type="checkbox" checked>
+                    启用自动抓取
+                </label>
+            </div>
+            <details class="form-group advanced-search-settings email-push-settings">
+                <summary>邮箱推送设置</summary>
+                <div class="email-settings-grid">
+                    <div class="email-settings-full">
+                        <label for="intelEmailRecipients" class="agent-question">报告推送邮箱</label>
+                        <input id="intelEmailRecipients" name="intel_email_recipients" class="form-control highlight-connection" placeholder="多个邮箱用逗号分隔；留空则不推送邮件" autocomplete="email">
+                    </div>
+                    <div>
+                        <label for="smtpHost" class="agent-question">SMTP 服务器</label>
+                        <input id="smtpHost" name="smtp_host" class="form-control highlight-connection" placeholder="例如：smtp.qq.com" autocomplete="off">
+                    </div>
+                    <div>
+                        <label for="smtpPort" class="agent-question">SMTP 端口</label>
+                        <input id="smtpPort" name="smtp_port" type="number" min="1" max="65535" value="587" class="form-control highlight-connection">
+                    </div>
+                    <div>
+                        <label for="smtpUsername" class="agent-question">SMTP 用户名</label>
+                        <input id="smtpUsername" name="smtp_username" class="form-control highlight-connection" placeholder="通常是发件邮箱" autocomplete="username">
+                    </div>
+                    <div>
+                        <label for="smtpFrom" class="agent-question">发件邮箱</label>
+                        <input id="smtpFrom" name="smtp_from" class="form-control highlight-connection" placeholder="例如：name@qq.com" autocomplete="email">
+                    </div>
+                    <div>
+                        <label for="smtpPassword" class="agent-question">SMTP 授权码/密码</label>
+                        <input id="smtpPassword" name="smtp_password" type="password" class="form-control highlight-connection" placeholder="已配置时可留空；填写新值会覆盖" autocomplete="new-password">
+                    </div>
+                    <label for="smtpUseTls" class="agent-question email-tls-toggle">
+                        <input id="smtpUseTls" name="smtp_use_tls" type="checkbox" checked>
+                        使用 TLS 加密连接
+                    </label>
+                </div>
+                <small class="text-muted">QQ、163、Gmail 等邮箱通常需要在邮箱后台开启 SMTP，并使用授权码或应用专用密码。</small>
+            </details>
+
+            <div class="form-group job-report-outline">
+                <label class="agent-question">报告输出内容</label>
+                <div class="job-outline-grid">
+                    <span><i class="fas fa-newspaper"></i> 今日摘要</span>
+                    <span><i class="fas fa-layer-group"></i> 分类情报</span>
+                    <span><i class="fas fa-building"></i> 公司/产品动态</span>
+                    <span><i class="fas fa-chart-simple"></i> 商业信号</span>
+                    <span><i class="fas fa-code-branch"></i> 技术趋势</span>
+                    <span><i class="fas fa-triangle-exclamation"></i> 风险与待跟踪</span>
+                </div>
+            </div>
+
+            <div class="job-submit-row">
+                <button type="button" class="btn btn-secondary button-padding" id="saveIntelJobBtn">保存订阅</button>
+                <button type="button" class="btn btn-secondary button-padding" id="runIntelJobBtn">立即运行一次</button>
+                <input type="submit" value="开始生成当前情报报告" class="btn btn-primary button-padding" id="submitButton">
+            </div>
+            <div class="intel-run-status" id="intelRunStatus" hidden>
+                <div class="intel-run-status-steps">
+                    <span data-run-step="1">保存配置</span>
+                    <span data-run-step="2">生成报告</span>
+                    <span data-run-step="3">邮件推送</span>
+                    <span data-run-step="4">完成</span>
+                </div>
+                <p id="intelRunStatusText">等待运行</p>
+            </div>
+        </form>
+
+        <section class="intel-dashboard" aria-label="每日情报订阅管理">
+            <div class="intel-dashboard-panel">
+                <div class="intel-panel-heading">
+                    <div>
+                        <p class="job-kicker">Subscriptions</p>
+                        <h3>我的情报订阅</h3>
+                    </div>
+                    <div class="intel-heading-actions">
+                        <button type="button" class="intel-ghost-btn" id="newIntelJobBtn">
+                            <i class="fas fa-plus"></i> 新建
+                        </button>
+                        <button type="button" class="intel-ghost-btn" id="refreshIntelJobsBtn">
+                            <i class="fas fa-rotate"></i> 刷新
+                        </button>
+                    </div>
+                </div>
+                <div class="intel-list" id="intelJobsList">
+                    <div class="intel-empty">暂无订阅，保存上方配置后会显示在这里。</div>
+                </div>
+            </div>
+
+            <div class="intel-dashboard-panel">
+                <div class="intel-panel-heading">
+                    <div>
+                        <p class="job-kicker">Runs</p>
+                        <h3>运行记录</h3>
+                    </div>
+                    <button type="button" class="intel-ghost-btn" id="refreshIntelRunsBtn">
+                        <i class="fas fa-rotate"></i> 刷新
+                    </button>
+                </div>
+                <div class="intel-list intel-runs-list" id="intelRunsList">
+                    <div class="intel-empty">暂无运行记录。</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Add JSON button above Research Progress section -->
+        <div class="margin-div" id="jsonButtonContainer" style="display: none; text-align: right; margin-bottom: 10px;">
+            <a id="downloadLinkJsonTop" href="#" class="report-action-btn disabled" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-file-code"></i> JSON
+            </a>
+        </div>
+
+        <div class="margin-div research-output-container" style="display: none;">
+            <!-- Move spinner to the left side of the text -->
+            <h2><div id="modernSpinner" class="modern-spinner"></div> 搜集进度 <button id="expandOutputBtn" class="expand-button" title="展开"><i class="fas fa-expand-alt"></i></button></h2>
+            <p class="mt-2 text-left" style="font-size: 0.8rem;">
+                实时查看 AI 如何搜集公开信息并生成情报摘要。</p>
+            <div id="output"></div>
+        </div>
+        <div class="images_div">
+            <div id="selectedImagesContainer" style="display: none;"></div>
+        </div>
+        <div class="margin-div report-container" style="display: none;">
+            <h2>每日情报速递报告
+                <button id="copyToClipboardTop" class="icon-button" title="复制" style="display: none;">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button id="expandReportBtn" class="expand-button" title="展开">
+                    <i class="fas fa-expand-alt"></i>
+                </button>
+            </h2>
+            <!-- Add download buttons above the report container -->
+            <div class="report-actions" style="display: none;">
+                <a id="downloadLinkTop" href="#" class="report-action-btn disabled" target="_blank" rel="noopener noreferrer">
+                    <i class="fas fa-file-pdf"></i> PDF
+                </a>
+                <a id="downloadLinkWordTop" href="#" class="report-action-btn disabled" target="_blank" rel="noopener noreferrer">
+                    <i class="fas fa-file-word"></i> Word
+                </a>
+                <a id="downloadLinkMdTop" href="#" class="report-action-btn disabled" target="_blank" rel="noopener noreferrer">
+                    <i class="fas fa-file-lines"></i> Markdown
+                </a>
+            </div>
+            <div id="reportContainer"></div>
+            <div id="reportActions" style="display: none;">
+                <div class="alert alert-info" role="alert" id="status"></div>
+            </div>
+        </div>
+
+        <!-- Chat Container -->
+        <div class="margin-div chat-container" id="chatContainer" style="display: none;">
+            <h2><i class="fas fa-comments"></i> 和 AI 继续讨论这份研究 <button id="expandChatBtn" class="expand-button" title="展开"><i class="fas fa-expand-alt"></i></button></h2>
+            <p class="text-muted">围绕研究报告继续提问，获得更多洞察</p>
+            <div id="chatMessages" class="chat-messages"></div>
+            <div class="chat-input-container">
+                <textarea id="chatInput" class="form-control chat-input" placeholder="针对这份研究继续提问..." rows="2"></textarea>
+                <button id="voiceInputBtn" class="btn btn-secondary" title="使用语音输入">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button id="sendChatBtn" class="btn btn-primary">
+                    <i class="fas fa-paper-plane"></i> 发送
+                </button>
+            </div>
+        </div>
+
+        <!-- Fixed bottom bar styled like the top credits bar -->
+    </main>
+
+    <!-- Conversation History Panel -->
+    <div class="history-panel" id="historyPanel">
+        <div class="history-panel-header">
+            <h3><i class="fas fa-history"></i> 情报历史</h3>
+            <div class="history-panel-actions">
+                <button id="historyPanelToggle" class="history-action-btn" title="关闭面板">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="history-panel-search">
+            <input type="text" id="historySearch" placeholder="搜索历史">
+            <button id="historySearchBtn" class="history-action-btn" title="搜索历史">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+        <div class="history-panel-filters">
+            <select id="historySortOrder">
+                <option value="newest">最新优先</option>
+                <option value="oldest">最早优先</option>
+            </select>
+            <!-- JS will add Import/Export/Debug buttons here -->
+            <button id="historyClearBtn" class="history-action-btn" title="清空搜索历史">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+        <div class="history-panel-entries" id="historyEntries">
+            <!-- Entries will be populated dynamically -->
+        </div>
+    </div>
+    
+    <!-- Sticky Downloads Bar -->
+    <div class="sticky-downloads-bar" id="stickyDownloadsBar" style="display: none;"> <!-- Initially hidden -->
+        <div class="download-buttons-container">
+            <a id="copyToClipboard" class="download-option-btn disabled">
+                <i class="fas fa-copy"></i> 复制 Markdown
+            </a>
+            <a id="downloadLinkMd" href="#" class="download-option-btn disabled" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-file-lines"></i> Markdown
+            </a>
+            <a id="downloadLink" href="#" class="download-option-btn disabled" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-file-pdf"></i> PDF
+            </a>
+            <a id="downloadLinkWord" href="#" class="download-option-btn disabled" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-file-word"></i> Word
+            </a>
+            <a id="downloadLinkJson" href="#" class="download-option-btn disabled" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-file-code"></i> 日志 JSON
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+    <script src="/site/scripts.js?v=daily-intel-20260710-1"></script>
+    <script>
+        // Auto-resize textarea as content grows
+        const taskTextarea = document.getElementById('task');
+        if (taskTextarea) {
+            // Set initial height
+            taskTextarea.setAttribute('style', 'height: 38px; overflow-y: hidden;');
+
+            // Function to resize textarea based on content
+            const resizeTextarea = () => {
+                taskTextarea.style.height = 'auto';
+                taskTextarea.style.height = taskTextarea.scrollHeight + 'px';
+            };
+
+            // Add event listeners for input and focus
+            taskTextarea.addEventListener('input', resizeTextarea);
+            taskTextarea.addEventListener('focus', resizeTextarea);
+        }
+
+        // Ensure feature panels are positioned correctly on window resize
+        window.addEventListener('resize', function () {
+            // Adjust the feature panel width based on screen size
+            const viewportWidth = window.innerWidth;
+            const featurePanel = document.querySelector('.feature-panel');
+
+            if (featurePanel) {
+                if (viewportWidth < 1400) {
+                    featurePanel.style.display = 'none';
+                } else {
+                    featurePanel.style.display = 'block';
+                    // Adjust width based on screen size
+                    const panelWidth = Math.min(280, Math.max(200, viewportWidth * 0.15));
+                    featurePanel.style.width = `${panelWidth}px`;
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
